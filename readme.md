@@ -1,13 +1,25 @@
+## prerequisites
+* linux
+* zig 0.10
+* haolian9/fzf # for --input-file option
 
-todo:
+## setup
+* `zig build -Dreleas-safe`
+* `alias z='eval $(/path/to/zd/zig-out/bin/zd)'`
+
+## usage
+* zd [fzf]
+* zd add|. [path]
+* zd clear
+* zd list
+
+## todo
 * prevent duplicate entries
-* frequency of entries
-* scope
+* weighted entries based on frenquency
+* prune not-existed entries
+* ~~shell integration~~
+* placeholder of fzf --query
+* replace fzf with fzy
+* scoped database
     * project, git root
     * global
-    * user home
-* shell integration
-    * function cd() { buildin cd "$@"; }
-    * https://superuser.com/questions/296551/is-it-possible-to-override-the-command-lines-built-in-cd-command
-* placeholder of fzf --query
-* prune not-existed entries

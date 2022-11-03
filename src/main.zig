@@ -1,17 +1,3 @@
-// operation:
-// * remember cwd
-// * ensure uniqueness
-// * list all
-//
-// possible optimize:
-// * shm
-// * mmap
-// * flock
-//
-// specs of storage file
-// * line: '{absolute-path} {weight}'
-// * sorted
-
 const std = @import("std");
 const assert = std.debug.assert;
 const linux = std.os.linux;
