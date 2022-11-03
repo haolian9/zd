@@ -125,7 +125,7 @@ fn dbFzf(allocator: std.mem.Allocator) !void {
 
     const result = try exec.stdoutonly(.{
         .allocator = allocator,
-        .argv = &.{ "fzf", "--input-file", facts.dbpath },
+        .argv = &.{ "fzf", "--layout=reverse", "--height=30%", "--min-height=5", "--input-file", facts.dbpath },
     });
     defer allocator.free(result.stdout);
 

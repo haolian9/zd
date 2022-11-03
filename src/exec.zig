@@ -1,3 +1,5 @@
+// stole the main logic from std.ChildProcess :: exec
+
 const std = @import("std");
 const mem = std.mem;
 const fs = std.fs;
