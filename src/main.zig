@@ -120,7 +120,7 @@ fn dbClear() !void {
 }
 
 fn dbFzf(allocator: std.mem.Allocator) !void {
-    const lock = try Lock.init(facts.lockpath, linux.LOCK.EX);
+    const lock = try Lock.init(facts.lockpath, linux.LOCK.SH);
     defer lock.deinit();
 
     const result = try exec.stdoutonly(.{
