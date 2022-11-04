@@ -1,15 +1,11 @@
 const std = @import("std");
-const builtin = @import("builtin");
-const stdout = std.io.getStdOut();
-const stderr = std.io.getStdErr();
-const stdin = std.io.getStdIn();
 
 const Options = @import("Options.zig");
 const Choices = @import("Choices.zig");
 const Tty = @import("Tty.zig");
 const TtyInterface = @import("TtyInterface.zig").TtyInterface;
 
-pub const OutputWriter = std.io.FixedBufferStream([]u8);
+const OutputWriter = std.io.FixedBufferStream([]u8);
 
 pub fn launch(base_allocator: std.mem.Allocator, options: *Options) anyerror![]const u8 {
     var arena = std.heap.ArenaAllocator.init(base_allocator);
@@ -17,14 +13,9 @@ pub fn launch(base_allocator: std.mem.Allocator, options: *Options) anyerror![]c
 
     const allocator = arena.allocator();
 
-    var file = std.fs.cwd().openFile(options.input_file, .{}) catch |err| return err;
-
+    const file = std.fs.cwd().openFile(options.input_file, .{}) catch |err| return err;
     var choices = try Choices.init(allocator, options, file);
     defer choices.deinit();
-
-    if (stdin.isTty()) {
-        try choices.readAll();
-    }
 
     var tty = try Tty.init(options.tty_filename);
 
@@ -42,9 +33,12 @@ pub fn launch(base_allocator: std.mem.Allocator, options: *Options) anyerror![]c
     var tty_interface = try TtyInterface(OutputWriter.Writer).init(allocator, &tty, &choices, options, output_writer);
     defer tty_interface.deinit();
 
+    // todo: figure out why this is needed
     try tty_interface.draw(true);
-    if (tty_interface.run()) |rc| {
-        if (rc != 0) return error.AbnormalExit;
-        return base_allocator.shrink(output_buffer, try buffered_writer.getEndPos());
-    } else |err| return err;
+
+    switch (try tty_interface.run()) {
+        0 => return base_allocator.shrink(output_buffer, try buffered_writer.getEndPos()),
+        1 => return error.NoMatch,
+        else => unreachable,
+    }
 }

@@ -116,11 +116,10 @@ fn cmdFzf(allocator: std.mem.Allocator) !void {
     });
     defer allocator.free(result.stdout);
 
-    const stdout = std.io.getStdOut().writer();
     switch (result.term) {
         .Exited => |exited| switch (exited) {
-            0 => try std.fmt.format(stdout, "cd {s}", .{result.stdout}),
-            1 => try std.fmt.format(stdout, "echo no match", .{}),
+            0 => try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{result.stdout}),
+            1 => {},
             else => {},
         },
         else => unreachable,
@@ -133,10 +132,12 @@ fn cmdFzy(allocator: std.mem.Allocator) !void {
     var options = fzy.Options{
         .input_file = facts.dbpath,
     };
-    const output = fzy.launch(allocator, &options) catch |err| return err;
+    const output = fzy.launch(allocator, &options) catch |err| switch (err) {
+        error.NoMatch => return {},
+        else => return err,
+    };
     defer allocator.free(output);
-    const stdout = std.io.getStdOut().writer();
-    try std.fmt.format(stdout, "cd {s}", .{output});
+    try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{output});
 }
 
 pub fn main() !void {
