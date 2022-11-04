@@ -17,7 +17,7 @@ pub fn build(b: *std.build.Builder) void {
     exe.setTarget(target);
     exe.setBuildMode(mode);
     exe.setOutputDir(output_dir);
-    exe.single_threaded = true;
+    exe.single_threaded = false;
     exe.strip = true;
     exe.install();
 

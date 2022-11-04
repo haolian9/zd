@@ -3,11 +3,6 @@ const builtin = @import("builtin");
 const system = std.os.system;
 const linux = std.os.linux;
 
-const libc = @cImport({
-    @cInclude("stdio.h");
-    @cInclude("string.h");
-});
-
 const Tty = @This();
 
 pub const COLOR_BLACK = 0;

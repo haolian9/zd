@@ -4,6 +4,7 @@ const linux = std.os.linux;
 const os = std.os;
 const fs = std.fs;
 const exec = @import("exec.zig");
+const fzy = @import("fzy.zig");
 
 var facts: Facts = undefined;
 
@@ -126,6 +127,18 @@ fn cmdFzf(allocator: std.mem.Allocator) !void {
     }
 }
 
+fn cmdFzy(allocator: std.mem.Allocator) !void {
+    const lock = try Lock.init(facts.lockpath, linux.LOCK.SH);
+    defer lock.deinit();
+    var options = fzy.Options{
+        .input_file = facts.dbpath,
+    };
+    const output = fzy.launch(allocator, &options) catch |err| return err;
+    defer allocator.free(output);
+    const stdout = std.io.getStdOut().writer();
+    try std.fmt.format(stdout, "cd {s}", .{output});
+}
+
 pub fn main() !void {
     var args = std.process.ArgIteratorPosix.init();
     assert(args.skip());
@@ -164,6 +177,8 @@ pub fn main() !void {
             try cmdClear();
         } else if (std.mem.eql(u8, subcmd, "fzf")) {
             try cmdFzf(allocator);
+        } else if (std.mem.eql(u8, subcmd, "fzy")) {
+            try cmdFzy(allocator);
         } else if (std.mem.eql(u8, subcmd, "list")) {
             try cmdListAll();
         } else {

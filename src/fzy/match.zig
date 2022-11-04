@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const config = @cImport(@cInclude("config.h"));
+const config = @import("config.zig");
 
 pub const Score = f64;
 
