@@ -41,20 +41,53 @@ const Facts = struct {
 };
 
 const Lock = struct {
-    fd: os.fd_t,
+    file: fs.File = undefined,
+    /// lastQuery: 0..1024
+    data: [1 << 10]u8 = undefined,
 
     const Self = @This();
 
-    fn init(path: []const u8, op: i32) !Self {
-        const fd = os.open(path, linux.O.RDWR | linux.O.CREAT, linux.S.IRUSR | linux.S.IWUSR) catch |err| return err;
-        os.flock(fd, op | linux.LOCK.NB) catch |err| return err;
+    fn init(self: *Self, path: []const u8, op: i32) !void {
+        const file = try fs.createFileAbsolute(path, .{ .read = true, .truncate = false });
+        errdefer file.close();
 
-        return Self{ .fd = fd };
+        os.flock(file.handle, op | linux.LOCK.NB) catch |err| return err;
+        errdefer os.flock(file.handle, linux.LOCK.UN) catch unreachable;
+
+        try file.seekTo(0);
+        for (self.data) |*char| char.* = 0;
+        _ = try file.readAll(&self.data);
+
+        self.file = file;
     }
 
     fn deinit(self: Self) void {
-        defer os.close(self.fd);
-        os.flock(self.fd, linux.LOCK.UN) catch unreachable;
+        defer self.file.close();
+        defer os.flock(self.file.handle, linux.LOCK.UN) catch unreachable;
+
+        self.file.seekTo(0) catch unreachable;
+        self.file.writeAll(&self.data) catch unreachable;
+    }
+
+    fn getLastQuery(self: *Self) []const u8 {
+        const end: usize = blk: {
+            for (self.data[0..1024]) |*char, ix| {
+                if (char.* == 0) break :blk ix;
+            }
+            unreachable;
+        };
+
+        return self.data[0..end];
+    }
+
+    fn setLastQuery(self: *Self, query: []const u8) !void {
+        if (query.len > 1024) return error.QueryTooLong;
+
+        mem.copy(u8, self.data[0..query.len], query);
+        for (self.data[query.len..1024]) |*char| {
+            if (char.* == 0) break;
+            char.* = 0;
+        }
     }
 };
 
@@ -68,7 +101,8 @@ const Cmds = struct {
     const Self = @This();
 
     fn listAll(self: Self) !void {
-        const lock = try Lock.init(self.facts.lockpath, linux.LOCK.SH);
+        var lock = Lock{};
+        try lock.init(self.facts.lockpath, linux.LOCK.SH);
         defer lock.deinit();
 
         var file = fs.openFileAbsolute(self.facts.dbpath, .{}) catch |err| switch (err) {
@@ -89,16 +123,14 @@ const Cmds = struct {
     }
 
     fn addOne(self: Self, path: []const u8) !void {
-        const lock = try Lock.init(self.facts.lockpath, linux.LOCK.EX);
+        var lock = Lock{};
+        try lock.init(self.facts.lockpath, linux.LOCK.EX);
         defer lock.deinit();
 
-        const fd = try os.open(self.facts.dbpath, linux.O.RDWR | linux.O.CREAT, linux.S.IRUSR | linux.S.IWUSR);
-        defer os.close(fd);
-
-        const file = fs.File{ .handle = fd };
+        var file = try fs.createFileAbsolute(self.facts.dbpath, .{ .read = true, .truncate = false });
+        defer file.close();
 
         var found = false;
-
         {
             var reader = file.reader();
             var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
@@ -117,7 +149,8 @@ const Cmds = struct {
     }
 
     fn clear(self: Self) !void {
-        const lock = try Lock.init(self.facts.lockpath, linux.LOCK.EX);
+        var lock = Lock{};
+        try lock.init(self.facts.lockpath, linux.LOCK.EX);
         defer lock.deinit();
 
         return os.unlink(self.facts.dbpath) catch |err| switch (err) {
@@ -127,18 +160,41 @@ const Cmds = struct {
     }
 
     fn fzf(self: Self) !void {
-        const lock = try Lock.init(self.facts.lockpath, linux.LOCK.SH);
+        var lock = Lock{};
+        try lock.init(self.facts.lockpath, linux.LOCK.SH);
         defer lock.deinit();
 
         const result = try exec.stdoutonly(.{
             .allocator = self.allocator,
-            .argv = &.{ "fzf", "--layout=reverse", "--height=30%", "--min-height=5", "--input-file", self.facts.dbpath },
+            .argv = &.{
+                "fzf",
+                "--ansi",
+                "--print-query",
+                "--layout=reverse",
+                "--height=30%",
+                "--min-height=5",
+                "--bind",
+                "char:unbind(char)+clear-query+put",
+                "--input-file",
+                self.facts.dbpath,
+                "--query",
+                lock.getLastQuery(),
+            },
         });
         defer self.allocator.free(result.stdout);
 
         switch (result.term) {
             .Exited => |exited| switch (exited) {
-                0 => try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{result.stdout}),
+                0 => {
+                    assert(mem.endsWith(u8, result.stdout, "\n"));
+                    var iter = mem.split(u8, result.stdout[0 .. result.stdout.len - 1], "\n");
+                    if (iter.next()) |query| {
+                        if (query.len > 0) try lock.setLastQuery(query);
+                    } else return error.expectQuery;
+                    if (iter.next()) |matched| {
+                        try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{matched});
+                    } else return error.expectMatch;
+                },
                 1 => {},
                 else => {},
             },
@@ -147,7 +203,8 @@ const Cmds = struct {
     }
 
     fn fzy(self: Self) !void {
-        const lock = try Lock.init(self.facts.lockpath, linux.LOCK.SH);
+        var lock = Lock{};
+        try lock.init(self.facts.lockpath, linux.LOCK.SH);
         defer lock.deinit();
         var options = fzylib.Options{
             .input_file = self.facts.dbpath,

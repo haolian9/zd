@@ -17,7 +17,7 @@
 
 ## todo
 * [x] prevent duplicate entries
-* [ ] repeat last query
+* [x] repeat last query - fzf
 * [x] shell integration - alias: `alias z='eval $(zd fzf)'`
 * [ ] shell integration - keybind
 * [x] integrate fzy
