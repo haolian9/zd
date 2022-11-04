@@ -4,6 +4,7 @@ const linux = std.os.linux;
 const os = std.os;
 const fs = std.fs;
 const mem = std.mem;
+const features = @import("features");
 
 const exec = @import("exec.zig");
 const fzylib = @import("fzy.zig");
@@ -160,61 +161,69 @@ const Cmds = struct {
     }
 
     fn fzf(self: Self) !void {
-        var lock = Lock{};
-        try lock.init(self.facts.lockpath, linux.LOCK.SH);
-        defer lock.deinit();
+        if (features.fzf) {
+            var lock = Lock{};
+            try lock.init(self.facts.lockpath, linux.LOCK.SH);
+            defer lock.deinit();
 
-        const result = try exec.stdoutonly(.{
-            .allocator = self.allocator,
-            .argv = &.{
-                "fzf",
-                "--ansi",
-                "--print-query",
-                "--layout=reverse",
-                "--height=30%",
-                "--min-height=5",
-                "--bind",
-                "char:unbind(char)+clear-query+put",
-                "--input-file",
-                self.facts.dbpath,
-                "--query",
-                lock.getLastQuery(),
-            },
-        });
-        defer self.allocator.free(result.stdout);
-
-        switch (result.term) {
-            .Exited => |exited| switch (exited) {
-                0 => {
-                    assert(mem.endsWith(u8, result.stdout, "\n"));
-                    var iter = mem.split(u8, result.stdout[0 .. result.stdout.len - 1], "\n");
-                    if (iter.next()) |query| {
-                        if (query.len > 0) try lock.setLastQuery(query);
-                    } else return error.expectQuery;
-                    if (iter.next()) |matched| {
-                        try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{matched});
-                    } else return error.expectMatch;
+            const result = try exec.stdoutonly(.{
+                .allocator = self.allocator,
+                .argv = &.{
+                    "fzf",
+                    "--ansi",
+                    "--print-query",
+                    "--layout=reverse",
+                    "--height=30%",
+                    "--min-height=5",
+                    "--bind",
+                    "char:unbind(char)+clear-query+put",
+                    "--input-file",
+                    self.facts.dbpath,
+                    "--query",
+                    lock.getLastQuery(),
                 },
-                1 => {},
-                else => {},
-            },
-            else => unreachable,
+            });
+            defer self.allocator.free(result.stdout);
+
+            switch (result.term) {
+                .Exited => |exited| switch (exited) {
+                    0 => {
+                        assert(mem.endsWith(u8, result.stdout, "\n"));
+                        var iter = mem.split(u8, result.stdout[0 .. result.stdout.len - 1], "\n");
+                        if (iter.next()) |query| {
+                            if (query.len > 0) try lock.setLastQuery(query);
+                        } else return error.expectQuery;
+                        if (iter.next()) |matched| {
+                            try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{matched});
+                        } else return error.expectMatch;
+                    },
+                    1 => {},
+                    else => {},
+                },
+                else => unreachable,
+            }
+        } else {
+            std.log.err("fzf feature has been disabled", .{});
         }
     }
 
     fn fzy(self: Self) !void {
-        var lock = Lock{};
-        try lock.init(self.facts.lockpath, linux.LOCK.SH);
-        defer lock.deinit();
-        var options = fzylib.Options{
-            .input_file = self.facts.dbpath,
-        };
-        const output = fzylib.launch(self.allocator, &options) catch |err| switch (err) {
-            error.NoMatch => return {},
-            else => return err,
-        };
-        defer self.allocator.free(output);
-        try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{output});
+        if (features.fzy) {
+            var lock = Lock{};
+            try lock.init(self.facts.lockpath, linux.LOCK.SH);
+            defer lock.deinit();
+            var options = fzylib.Options{
+                .input_file = self.facts.dbpath,
+            };
+            const output = fzylib.launch(self.allocator, &options) catch |err| switch (err) {
+                error.NoMatch => return {},
+                else => return err,
+            };
+            defer self.allocator.free(output);
+            try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{output});
+        } else {
+            std.log.err("fzy feature has been disabled", .{});
+        }
     }
 };
 

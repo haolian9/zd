@@ -17,6 +17,10 @@ pub fn launch(base_allocator: std.mem.Allocator, options: *Options) anyerror![]c
     var choices = try Choices.init(allocator, options, file);
     defer choices.deinit();
 
+    if (std.io.getStdIn().isTty()) {
+        try choices.readAll();
+    }
+
     var tty = try Tty.init(options.tty_filename);
 
     const num_lines_adjustment: usize = if (options.show_info) 2 else 1;

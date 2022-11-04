@@ -5,6 +5,8 @@
 
 ## setup
 * `zig build -Dreleas-safe`
+* to opt-in fzf support, add `-Dfzf`
+* to opt-in fzy support, add `-Dfzy`
 
 ## usage
 * zd add {path}
@@ -21,7 +23,7 @@
 * [x] shell integration - alias: `alias z='eval $(zd fzf)'`
 * [ ] shell integration - keybind
 * [x] integrate fzy
-* [ ] complation tag for fzf and fzy
+* [x] complation tag for fzf and fzy
 * [ ] prune not-existed entries
 * [ ] scoped database: project/git vs. global
 * [ ] ~~weighted entries based on frenquency~~
