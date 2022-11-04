@@ -6,9 +6,7 @@ const fs = std.fs;
 const mem = std.mem;
 
 const exec = @import("exec.zig");
-const fzy = @import("fzy.zig");
-
-var facts: Facts = undefined;
+const fzylib = @import("fzy.zig");
 
 const Facts = struct {
     allocator: mem.Allocator,
@@ -60,98 +58,108 @@ const Lock = struct {
     }
 };
 
-fn cmdListAll() !void {
-    const lock = try Lock.init(facts.lockpath, linux.LOCK.SH);
-    defer lock.deinit();
+/// contains cmd used in main()
+/// all cmds should return `anyerror!void` for now
+/// todo: exit code
+const Cmds = struct {
+    allocator: mem.Allocator,
+    facts: Facts,
 
-    var file = fs.openFileAbsolute(facts.dbpath, .{}) catch |err| switch (err) {
-        error.FileNotFound => return,
-        else => return err,
-    };
-    defer file.close();
+    const Self = @This();
 
-    {
-        const stdout = std.io.getStdOut().writer();
-        const reader = file.reader();
-        var buffer: [fs.MAX_PATH_BYTES]u8 = undefined;
-        while (try reader.readUntilDelimiterOrEof(&buffer, '\n')) |line| {
-            try stdout.writeAll(line);
-            try stdout.writeAll("\n");
-        }
-    }
-}
+    fn listAll(self: Self) !void {
+        const lock = try Lock.init(self.facts.lockpath, linux.LOCK.SH);
+        defer lock.deinit();
 
-fn cmdAddOne(path: []const u8) !void {
-    const lock = try Lock.init(facts.lockpath, linux.LOCK.EX);
-    defer lock.deinit();
+        var file = fs.openFileAbsolute(self.facts.dbpath, .{}) catch |err| switch (err) {
+            error.FileNotFound => return,
+            else => return err,
+        };
+        defer file.close();
 
-    const fd = try os.open(facts.dbpath, linux.O.RDWR | linux.O.CREAT, linux.S.IRUSR | linux.S.IWUSR);
-    defer os.close(fd);
-
-    const file = fs.File{ .handle = fd };
-
-    var found = false;
-
-    {
-        var reader = file.reader();
-        var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-        while (try reader.readUntilDelimiterOrEof(&buf, '\n')) |line| {
-            found = mem.eql(u8, line, path);
-            if (found) break;
+        {
+            const stdout = std.io.getStdOut().writer();
+            const reader = file.reader();
+            var buffer: [fs.MAX_PATH_BYTES]u8 = undefined;
+            while (try reader.readUntilDelimiterOrEof(&buffer, '\n')) |line| {
+                try stdout.writeAll(line);
+                try stdout.writeAll("\n");
+            }
         }
     }
 
-    if (found) return;
+    fn addOne(self: Self, path: []const u8) !void {
+        const lock = try Lock.init(self.facts.lockpath, linux.LOCK.EX);
+        defer lock.deinit();
 
-    const stat = try file.stat();
-    try file.seekTo(stat.size);
-    try file.writeAll(path);
-    try file.writeAll("\n");
-}
+        const fd = try os.open(self.facts.dbpath, linux.O.RDWR | linux.O.CREAT, linux.S.IRUSR | linux.S.IWUSR);
+        defer os.close(fd);
 
-fn cmdClear() !void {
-    const lock = try Lock.init(facts.lockpath, linux.LOCK.EX);
-    defer lock.deinit();
+        const file = fs.File{ .handle = fd };
 
-    return os.unlink(facts.dbpath) catch |err| switch (err) {
-        error.FileNotFound => {},
-        else => err,
-    };
-}
+        var found = false;
 
-fn cmdFzf(allocator: mem.Allocator) !void {
-    const lock = try Lock.init(facts.lockpath, linux.LOCK.SH);
-    defer lock.deinit();
+        {
+            var reader = file.reader();
+            var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
+            while (try reader.readUntilDelimiterOrEof(&buf, '\n')) |line| {
+                found = mem.eql(u8, line, path);
+                if (found) break;
+            }
+        }
 
-    const result = try exec.stdoutonly(.{
-        .allocator = allocator,
-        .argv = &.{ "fzf", "--layout=reverse", "--height=30%", "--min-height=5", "--input-file", facts.dbpath },
-    });
-    defer allocator.free(result.stdout);
+        if (found) return;
 
-    switch (result.term) {
-        .Exited => |exited| switch (exited) {
-            0 => try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{result.stdout}),
-            1 => {},
-            else => {},
-        },
-        else => unreachable,
+        const stat = try file.stat();
+        try file.seekTo(stat.size);
+        try file.writeAll(path);
+        try file.writeAll("\n");
     }
-}
 
-fn cmdFzy(allocator: mem.Allocator) !void {
-    const lock = try Lock.init(facts.lockpath, linux.LOCK.SH);
-    defer lock.deinit();
-    var options = fzy.Options{
-        .input_file = facts.dbpath,
-    };
-    const output = fzy.launch(allocator, &options) catch |err| switch (err) {
-        error.NoMatch => return {},
-        else => return err,
-    };
-    defer allocator.free(output);
-    try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{output});
-}
+    fn clear(self: Self) !void {
+        const lock = try Lock.init(self.facts.lockpath, linux.LOCK.EX);
+        defer lock.deinit();
+
+        return os.unlink(self.facts.dbpath) catch |err| switch (err) {
+            error.FileNotFound => {},
+            else => err,
+        };
+    }
+
+    fn fzf(self: Self) !void {
+        const lock = try Lock.init(self.facts.lockpath, linux.LOCK.SH);
+        defer lock.deinit();
+
+        const result = try exec.stdoutonly(.{
+            .allocator = self.allocator,
+            .argv = &.{ "fzf", "--layout=reverse", "--height=30%", "--min-height=5", "--input-file", self.facts.dbpath },
+        });
+        defer self.allocator.free(result.stdout);
+
+        switch (result.term) {
+            .Exited => |exited| switch (exited) {
+                0 => try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{result.stdout}),
+                1 => {},
+                else => {},
+            },
+            else => unreachable,
+        }
+    }
+
+    fn fzy(self: Self) !void {
+        const lock = try Lock.init(self.facts.lockpath, linux.LOCK.SH);
+        defer lock.deinit();
+        var options = fzylib.Options{
+            .input_file = self.facts.dbpath,
+        };
+        const output = fzylib.launch(self.allocator, &options) catch |err| switch (err) {
+            error.NoMatch => return {},
+            else => return err,
+        };
+        defer self.allocator.free(output);
+        try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{output});
+    }
+};
 
 pub fn main() !void {
     var args = std.process.ArgIteratorPosix.init();
@@ -162,35 +170,37 @@ pub fn main() !void {
 
     const allocator = gpa.allocator();
 
-    facts = try Facts.init(allocator);
+    const facts = try Facts.init(allocator);
     defer facts.deinit();
+
+    const cmds = Cmds{ .allocator = allocator, .facts = facts };
 
     if (args.next()) |subcmd| {
         if (mem.eql(u8, subcmd, "add") or mem.eql(u8, subcmd, ".")) {
             if (args.next()) |path| {
                 if (mem.eql(u8, path, "/")) {
-                    try cmdAddOne(path);
+                    try cmds.addOne(path);
                 } else {
                     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-                    try cmdAddOne(try os.realpath(path, &buf));
+                    try cmds.addOne(try os.realpath(path, &buf));
                 }
             } else {
                 var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
                 const path = try os.getcwd(&buf);
-                try cmdAddOne(path);
+                try cmds.addOne(path);
             }
         } else if (mem.eql(u8, subcmd, "clear")) {
-            try cmdClear();
+            try cmds.clear();
         } else if (mem.eql(u8, subcmd, "fzf")) {
-            try cmdFzf(allocator);
+            try cmds.fzf();
         } else if (mem.eql(u8, subcmd, "fzy")) {
-            try cmdFzy(allocator);
+            try cmds.fzy();
         } else if (mem.eql(u8, subcmd, "list")) {
-            try cmdListAll();
+            try cmds.listAll();
         } else {
-            std.log.warn("unknown subcmd: {s}", .{subcmd});
+            std.log.err("unknown subcmd: {s}", .{subcmd});
         }
     } else {
-        try cmdFzf(allocator);
+        try cmds.fzf();
     }
 }
