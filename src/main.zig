@@ -3,20 +3,22 @@ const assert = std.debug.assert;
 const linux = std.os.linux;
 const os = std.os;
 const fs = std.fs;
+const mem = std.mem;
+
 const exec = @import("exec.zig");
 const fzy = @import("fzy.zig");
 
 var facts: Facts = undefined;
 
 const Facts = struct {
-    allocator: std.mem.Allocator,
+    allocator: mem.Allocator,
     dbpath: []const u8,
     lockpath: []const u8,
 
     const appname = "zd";
     const Self = @This();
 
-    fn init(allocator: std.mem.Allocator) !Self {
+    fn init(allocator: mem.Allocator) !Self {
         const home_dir = os.getenv("HOME") orelse {
             return error.AppCacheDirUnavailable;
         };
@@ -83,17 +85,28 @@ fn cmdAddOne(path: []const u8) !void {
     const lock = try Lock.init(facts.lockpath, linux.LOCK.EX);
     defer lock.deinit();
 
-    const fd = try os.open(facts.dbpath, linux.O.WRONLY | linux.O.CREAT | linux.O.APPEND, linux.S.IRUSR | linux.S.IWUSR);
+    const fd = try os.open(facts.dbpath, linux.O.RDWR | linux.O.CREAT, linux.S.IRUSR | linux.S.IWUSR);
     defer os.close(fd);
 
     const file = fs.File{ .handle = fd };
 
+    var found = false;
+
+    {
+        var reader = file.reader();
+        var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
+        while (try reader.readUntilDelimiterOrEof(&buf, '\n')) |line| {
+            found = mem.eql(u8, line, path);
+            if (found) break;
+        }
+    }
+
+    if (found) return;
+
+    const stat = try file.stat();
+    try file.seekTo(stat.size);
     try file.writeAll(path);
     try file.writeAll("\n");
-}
-
-fn cmdDiscardOne(path: []const u8) !void {
-    _ = path;
 }
 
 fn cmdClear() !void {
@@ -106,7 +119,7 @@ fn cmdClear() !void {
     };
 }
 
-fn cmdFzf(allocator: std.mem.Allocator) !void {
+fn cmdFzf(allocator: mem.Allocator) !void {
     const lock = try Lock.init(facts.lockpath, linux.LOCK.SH);
     defer lock.deinit();
 
@@ -126,7 +139,7 @@ fn cmdFzf(allocator: std.mem.Allocator) !void {
     }
 }
 
-fn cmdFzy(allocator: std.mem.Allocator) !void {
+fn cmdFzy(allocator: mem.Allocator) !void {
     const lock = try Lock.init(facts.lockpath, linux.LOCK.SH);
     defer lock.deinit();
     var options = fzy.Options{
@@ -153,9 +166,9 @@ pub fn main() !void {
     defer facts.deinit();
 
     if (args.next()) |subcmd| {
-        if (std.mem.eql(u8, subcmd, "add") or std.mem.eql(u8, subcmd, ".")) {
+        if (mem.eql(u8, subcmd, "add") or mem.eql(u8, subcmd, ".")) {
             if (args.next()) |path| {
-                if (std.mem.eql(u8, path, "/")) {
+                if (mem.eql(u8, path, "/")) {
                     try cmdAddOne(path);
                 } else {
                     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
@@ -166,21 +179,13 @@ pub fn main() !void {
                 const path = try os.getcwd(&buf);
                 try cmdAddOne(path);
             }
-        } else if (std.mem.eql(u8, subcmd, "discard")) {
-            if (args.next()) |path| {
-                try cmdDiscardOne(path);
-            } else {
-                var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-                const path = try os.getcwd(&buf);
-                try cmdDiscardOne(path);
-            }
-        } else if (std.mem.eql(u8, subcmd, "clear")) {
+        } else if (mem.eql(u8, subcmd, "clear")) {
             try cmdClear();
-        } else if (std.mem.eql(u8, subcmd, "fzf")) {
+        } else if (mem.eql(u8, subcmd, "fzf")) {
             try cmdFzf(allocator);
-        } else if (std.mem.eql(u8, subcmd, "fzy")) {
+        } else if (mem.eql(u8, subcmd, "fzy")) {
             try cmdFzy(allocator);
-        } else if (std.mem.eql(u8, subcmd, "list")) {
+        } else if (mem.eql(u8, subcmd, "list")) {
             try cmdListAll();
         } else {
             std.log.warn("unknown subcmd: {s}", .{subcmd});
