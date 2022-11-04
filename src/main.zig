@@ -267,6 +267,12 @@ pub fn main() !void {
             std.log.err("unknown subcmd: {s}", .{subcmd});
         }
     } else {
-        try cmds.fzf();
+        if (features.fzf) {
+            try cmds.fzf();
+        } else if (features.fzy) {
+            try cmds.fzy();
+        } else {
+            std.log.err("choose a subcmd", .{});
+        }
     }
 }
