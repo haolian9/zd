@@ -57,7 +57,7 @@ const Lock = struct {
     }
 };
 
-fn dbListAll() !void {
+fn cmdListAll() !void {
     const lock = try Lock.init(facts.lockpath, linux.LOCK.SH);
     defer lock.deinit();
 
@@ -78,7 +78,7 @@ fn dbListAll() !void {
     }
 }
 
-fn dbAddOne(path: []const u8) !void {
+fn cmdAddOne(path: []const u8) !void {
     const lock = try Lock.init(facts.lockpath, linux.LOCK.EX);
     defer lock.deinit();
 
@@ -91,11 +91,11 @@ fn dbAddOne(path: []const u8) !void {
     try file.writeAll("\n");
 }
 
-fn dbDiscardOne(path: []const u8) !void {
+fn cmdDiscardOne(path: []const u8) !void {
     _ = path;
 }
 
-fn dbClear() !void {
+fn cmdClear() !void {
     const lock = try Lock.init(facts.lockpath, linux.LOCK.EX);
     defer lock.deinit();
 
@@ -105,7 +105,7 @@ fn dbClear() !void {
     };
 }
 
-fn dbFzf(allocator: std.mem.Allocator) !void {
+fn cmdFzf(allocator: std.mem.Allocator) !void {
     const lock = try Lock.init(facts.lockpath, linux.LOCK.SH);
     defer lock.deinit();
 
@@ -142,34 +142,34 @@ pub fn main() !void {
         if (std.mem.eql(u8, subcmd, "add") or std.mem.eql(u8, subcmd, ".")) {
             if (args.next()) |path| {
                 if (std.mem.eql(u8, path, "/")) {
-                    try dbAddOne(path);
+                    try cmdAddOne(path);
                 } else {
                     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-                    try dbAddOne(try os.realpath(path, &buf));
+                    try cmdAddOne(try os.realpath(path, &buf));
                 }
             } else {
                 var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
                 const path = try os.getcwd(&buf);
-                try dbAddOne(path);
+                try cmdAddOne(path);
             }
         } else if (std.mem.eql(u8, subcmd, "discard")) {
             if (args.next()) |path| {
-                try dbDiscardOne(path);
+                try cmdDiscardOne(path);
             } else {
                 var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
                 const path = try os.getcwd(&buf);
-                try dbDiscardOne(path);
+                try cmdDiscardOne(path);
             }
         } else if (std.mem.eql(u8, subcmd, "clear")) {
-            try dbClear();
+            try cmdClear();
         } else if (std.mem.eql(u8, subcmd, "fzf")) {
-            try dbFzf(allocator);
+            try cmdFzf(allocator);
         } else if (std.mem.eql(u8, subcmd, "list")) {
-            try dbListAll();
+            try cmdListAll();
         } else {
             std.log.warn("unknown subcmd: {s}", .{subcmd});
         }
     } else {
-        try dbFzf(allocator);
+        try cmdFzf(allocator);
     }
 }
