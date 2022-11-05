@@ -160,6 +160,42 @@ const Cmds = struct {
         };
     }
 
+    fn tidy(self: Self) !void {
+        var lock = Lock{};
+        try lock.init(self.facts.lockpath, linux.LOCK.EX);
+        defer lock.deinit();
+
+        const src_path = self.facts.dbpath;
+        var dest_buf: [fs.MAX_PATH_BYTES]u8 = undefined;
+        const dest_path = try std.fmt.bufPrint(&dest_buf, "{s}.bak", .{src_path});
+
+        {
+            var src_file = fs.openFileAbsolute(src_path, .{}) catch |err| switch (err) {
+                error.FileNotFound => return,
+                else => return err,
+            };
+            defer src_file.close();
+
+            var dest_file = try fs.createFileAbsolute(dest_path, .{});
+            defer dest_file.close();
+
+            var reader = src_file.reader();
+            var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
+            while (try reader.readUntilDelimiterOrEof(&buf, '\n')) |entry| {
+                var ent_file = fs.openDirAbsolute(entry, .{ .access_sub_paths = false }) catch |err| {
+                    std.log.warn("discarded: {s}; {any}", .{ entry, err });
+                    continue;
+                };
+                defer ent_file.close();
+
+                try dest_file.writeAll(entry);
+                try dest_file.writeAll("\n");
+            }
+        }
+
+        try fs.renameAbsolute(dest_path, src_path);
+    }
+
     fn fzf(self: Self) !void {
         if (features.fzf) {
             var lock = Lock{};
@@ -263,6 +299,8 @@ pub fn main() !void {
             try cmds.fzy();
         } else if (mem.eql(u8, subcmd, "list")) {
             try cmds.listAll();
+        } else if (mem.eql(u8, subcmd, "tidy")) {
+            try cmds.tidy();
         } else {
             std.log.err("unknown subcmd: {s}", .{subcmd});
         }

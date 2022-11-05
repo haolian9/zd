@@ -12,9 +12,10 @@
 * zd add {path}
 * zd clear
 * zd list
-* zd fzf        # equals to `zd list | fzf`
-* zd fzy        # equals to `zd list | fzy`
-* zd            # equals to `zd fzf`
+* zd tidy
+* zd fzf        # equals to `cd $(zd list | fzf)`
+* zd fzy        # equals to `cd $(zd list | fzy)`
+* zd            # equals to `zd fzf` or `zd fzy`
 * zd .          # equals to `zd add $(pwd)`
 
 ## todo
@@ -24,7 +25,8 @@
 * [ ] shell integration - keybind
 * [x] integrate fzy
 * [x] complation tag for fzf and fzy
-* [ ] prune not-existed entries
-* [ ] scoped database: project/git vs. global
+* [x] prune not-existed entries
+* [ ] ~~scoped database: project/git vs. global~~
 * [ ] ~~weighted entries based on frenquency~~
 * [ ] ~~discard entries~~
+* [ ] ~~repeat last query - fzy~~
