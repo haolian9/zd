@@ -102,13 +102,8 @@ pub fn TtyInterface(comptime OutputWriter: type) type {
 
                         try self.draw(true);
 
-                        if (!(try self.tty.waitForEvent(
-                            if (self.ambiguous_key_pending) config.KEYTIMEOUT else 0,
-                            false,
-                            null,
-                        )).key) {
-                            break;
-                        }
+                        const event = try self.tty.waitForEvent(if (self.ambiguous_key_pending) config.keytimeout else 0, false, null);
+                        if (!event.key) break;
                     }
                 }
 
@@ -219,7 +214,7 @@ pub fn TtyInterface(comptime OutputWriter: type) type {
             }
 
             if (selected) {
-                if (config.TTY_SELECTION_UNDERLINE) {
+                if (config.tty_selection_underline) {
                     tty.setUnderline();
                 } else {
                     tty.setInvert();
@@ -230,10 +225,10 @@ pub fn TtyInterface(comptime OutputWriter: type) type {
             var p: usize = 0;
             for (str) |c, k| {
                 if (positions[p] == k) {
-                    tty.setFg(config.TTY_COLOR_HIGHLIGHT);
+                    tty.setfg(config.tty_color_highlight);
                     p += 1;
                 } else {
-                    tty.setFg(Tty.COLOR_NORMAL);
+                    tty.setFg(.normal);
                 }
 
                 if (c == '\n') {

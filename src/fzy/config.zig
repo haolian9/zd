@@ -1,22 +1,20 @@
-const Tty = @import("Tty.zig");
+pub const tty_color_highlight = .yellow;
+pub const tty_selection_underline = false;
 
-pub const TTY_COLOR_HIGHLIGHT = Tty.COLOR_YELLOW;
-pub const TTY_SELECTION_UNDERLINE = false;
-
-pub const SCORE_GAP_LEADING = -0.005;
-pub const SCORE_GAP_TRAILING = -0.005;
-pub const SCORE_GAP_INNER = -0.01;
-pub const SCORE_MATCH_CONSECUTIVE = 1.0;
-pub const SCORE_MATCH_SLASH = 0.9;
-pub const SCORE_MATCH_WORD = 0.8;
-pub const SCORE_MATCH_CAPITAL = 0.7;
-pub const SCORE_MATCH_DOT = 0.6;
+pub const score_gap_leading = -0.005;
+pub const score_gap_trailing = -0.005;
+pub const score_gap_inner = -0.01;
+pub const score_match_consecutive = 1.0;
+pub const score_match_slash = 0.9;
+pub const score_match_word = 0.8;
+pub const score_match_capital = 0.7;
+pub const score_match_dot = 0.6;
 
 /// Time (in ms) to wait for additional bytes of an escape sequence
-pub const KEYTIMEOUT = 25;
+pub const keytimeout = 25;
 
-pub const DEFAULT_TTY = "/dev/tty";
-pub const DEFAULT_PROMPT = "> ";
-pub const DEFAULT_NUM_LINES = 10;
-pub const DEFAULT_WORKERS = 0;
-pub const DEFAULT_SHOW_INFO = false;
+pub const default_tty = "/dev/tty";
+pub const default_prompt = "> ";
+pub const default_num_lines = 10;
+pub const default_workers = 0;
+pub const default_show_info = false;
