@@ -5,6 +5,7 @@ const os = std.os;
 const fs = std.fs;
 const mem = std.mem;
 const features = @import("features");
+const builtin = @import("builtin");
 
 const exec = @import("exec.zig");
 const fzylib = @import("fzy.zig");
@@ -263,14 +264,9 @@ const Cmds = struct {
     }
 };
 
-pub fn main() !void {
+fn dispatchRun(allocator: mem.Allocator) !void {
     var args = std.process.ArgIteratorPosix.init();
     assert(args.skip());
-
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer assert(!gpa.deinit());
-
-    const allocator = gpa.allocator();
 
     const facts = try Facts.init(allocator);
     defer facts.deinit();
@@ -312,5 +308,16 @@ pub fn main() !void {
         } else {
             std.log.err("choose a subcmd", .{});
         }
+    }
+}
+
+pub fn main() !void {
+    if (builtin.mode == .Debug) {
+        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+        defer assert(!gpa.deinit());
+        const allocator = gpa.allocator();
+        try dispatchRun(allocator);
+    } else {
+        try dispatchRun(std.heap.page_allocator);
     }
 }
