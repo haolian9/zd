@@ -225,7 +225,7 @@ pub fn TtyInterface(comptime OutputWriter: type) type {
             var p: usize = 0;
             for (str) |c, k| {
                 if (positions[p] == k) {
-                    tty.setfg(config.tty_color_highlight);
+                    tty.setFg(config.tty_color_highlight);
                     p += 1;
                 } else {
                     tty.setFg(.normal);
