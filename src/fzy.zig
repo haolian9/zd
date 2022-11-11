@@ -44,9 +44,6 @@ pub fn launch(base_allocator: std.mem.Allocator, options: *Options) anyerror![]c
     var tty_interface = try TtyInterface(OutputWriter.Writer).init(allocator, &tty, &choices, options, output_writer);
     defer tty_interface.deinit();
 
-    // todo: figure out why this is needed
-    try tty_interface.draw(true);
-
     switch (try tty_interface.run()) {
         0 => return base_allocator.shrink(output_buffer, try buffered_writer.getEndPos()),
         1 => return error.NoMatch,

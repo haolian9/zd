@@ -54,6 +54,7 @@ pub fn TtyInterface(comptime OutputWriter: type) type {
             self.cursor = self.search.len;
 
             try self.updateSearch();
+            try self.draw(true);
 
             return self;
         }
@@ -139,7 +140,7 @@ pub fn TtyInterface(comptime OutputWriter: type) type {
             self.last_update.num_choices = self.choices.numChoices();
         }
 
-        pub fn draw(self: *Self, draw_matches: bool) !void {
+        fn draw(self: *Self, draw_matches: bool) !void {
             const tty = self.tty;
             const choices = self.choices;
             const options = self.options;
