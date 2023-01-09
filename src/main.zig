@@ -262,6 +262,11 @@ const Cmds = struct {
             std.log.err("fzy feature has been disabled", .{});
         }
     }
+
+    fn edit(self: Self) !void {
+        const editor = std.os.getenv("EDITOR") orelse "vi";
+        return std.process.execv(self.allocator, &.{ editor, self.facts.dbpath });
+    }
 };
 
 fn dispatchRun(allocator: mem.Allocator) !void {
@@ -297,6 +302,8 @@ fn dispatchRun(allocator: mem.Allocator) !void {
             try cmds.listAll();
         } else if (mem.eql(u8, subcmd, "tidy")) {
             try cmds.tidy();
+        } else if (mem.eql(u8, subcmd, "edit")) {
+            try cmds.edit();
         } else {
             std.log.err("unknown subcmd: {s}", .{subcmd});
         }

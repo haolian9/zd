@@ -40,7 +40,7 @@ pub fn stdoutonly(args: struct {
 
     return ExecResult{
         .term = try child.wait(),
-        .stdout = stdout.toOwnedSlice(),
+        .stdout = try stdout.toOwnedSlice(),
     };
 }
 
