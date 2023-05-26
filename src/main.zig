@@ -8,7 +8,6 @@ const features = @import("features");
 const builtin = @import("builtin");
 
 const exec = @import("exec.zig");
-const fzylib = @import("fzy.zig");
 
 const Facts = struct {
     allocator: mem.Allocator,
@@ -244,25 +243,6 @@ const Cmds = struct {
         }
     }
 
-    fn fzy(self: Self) !void {
-        if (features.fzy) {
-            var lock = Lock{};
-            try lock.init(self.facts.lockpath, linux.LOCK.SH);
-            defer lock.deinit();
-            var options = fzylib.Options{
-                .input_file = self.facts.dbpath,
-            };
-            const output = fzylib.launch(self.allocator, &options) catch |err| switch (err) {
-                error.NoMatch => return {},
-                else => return err,
-            };
-            defer self.allocator.free(output);
-            try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{output});
-        } else {
-            std.log.err("fzy feature has been disabled", .{});
-        }
-    }
-
     fn edit(self: Self) !void {
         const editor = std.os.getenv("EDITOR") orelse "vi";
         return std.process.execv(self.allocator, &.{ editor, self.facts.dbpath });
@@ -296,8 +276,6 @@ fn dispatchRun(allocator: mem.Allocator) !void {
             try cmds.clear();
         } else if (mem.eql(u8, subcmd, "fzf")) {
             try cmds.fzf();
-        } else if (mem.eql(u8, subcmd, "fzy")) {
-            try cmds.fzy();
         } else if (mem.eql(u8, subcmd, "list")) {
             try cmds.listAll();
         } else if (mem.eql(u8, subcmd, "tidy")) {
@@ -310,8 +288,6 @@ fn dispatchRun(allocator: mem.Allocator) !void {
     } else {
         if (features.fzf) {
             try cmds.fzf();
-        } else if (features.fzy) {
-            try cmds.fzy();
         } else {
             std.log.err("choose a subcmd", .{});
         }
