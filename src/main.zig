@@ -212,7 +212,9 @@ const Cmds = struct {
                     "--height=30%",
                     "--min-height=5",
                     "--bind",
-                    "char:unbind(char)+clear-query+put",
+                    "char:unbind(char)+clear-query+put", // placeholder&clear
+                    "--bind",
+                    "space:accept", // space is handy than <cr>/<c-m>
                     "--input-file",
                     self.facts.dbpath,
                     "--query",
