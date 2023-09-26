@@ -1,15 +1,17 @@
 a tool to remember directories manually, to fuzzy match a directory manually.
 
-## status: just-works
-* it requires my personal flavor of fzf
+## status
+* just works
+* feature-frozen
 
 ## aimed use environment
 * linux
-* zig 0.10     # for compilation
+* zig 0.11     # for compilation
 * haolian9/fzf # for --input-file option and char event
 
 ## setup
-* `zig build -Drelease-safe -Dfzf`
+* `zig build -Doptimize=ReleaseFast`
+* `zig build -Doptimize=ReleaseFast --prefix-exe-dir ~/bin`
 
 ## usage
 * zd add {path}

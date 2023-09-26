@@ -4,7 +4,6 @@ const linux = std.os.linux;
 const os = std.os;
 const fs = std.fs;
 const mem = std.mem;
-const features = @import("features");
 const builtin = @import("builtin");
 
 const exec = @import("exec.zig");
@@ -56,7 +55,7 @@ const Lock = struct {
         errdefer os.flock(file.handle, linux.LOCK.UN) catch unreachable;
 
         try file.seekTo(0);
-        for (self.data) |*char| char.* = 0;
+        for (&self.data) |*char| char.* = 0;
         _ = try file.readAll(&self.data);
 
         self.file = file;
@@ -72,7 +71,7 @@ const Lock = struct {
 
     fn getLastQuery(self: *Self) []const u8 {
         const end: usize = blk: {
-            for (self.data[0..1024]) |*char, ix| {
+            for (self.data[0..1024], 0..) |*char, ix| {
                 if (char.* == 0) break :blk ix;
             }
             unreachable;
@@ -197,51 +196,47 @@ const Cmds = struct {
     }
 
     fn fzf(self: Self) !void {
-        if (features.fzf) {
-            var lock = Lock{};
-            try lock.init(self.facts.lockpath, linux.LOCK.SH);
-            defer lock.deinit();
+        var lock = Lock{};
+        try lock.init(self.facts.lockpath, linux.LOCK.SH);
+        defer lock.deinit();
 
-            const result = try exec.stdoutonly(.{
-                .allocator = self.allocator,
-                .argv = &.{
-                    "fzf",
-                    "--ansi",
-                    "--print-query",
-                    "--layout=reverse",
-                    "--height=30%",
-                    "--min-height=5",
-                    "--bind",
-                    "char:unbind(char)+clear-query+put", // placeholder&clear
-                    "--bind",
-                    "space:accept", // space is handy than <cr>/<c-m>
-                    "--input-file",
-                    self.facts.dbpath,
-                    "--query",
-                    lock.getLastQuery(),
-                },
-            });
-            defer self.allocator.free(result.stdout);
+        const result = try exec.stdoutonly(.{
+            .allocator = self.allocator,
+            .argv = &.{
+                "fzf",
+                "--ansi",
+                "--print-query",
+                "--layout=reverse",
+                "--height=30%",
+                "--min-height=5",
+                "--bind",
+                "char:unbind(char)+clear-query+put", // placeholder&clear
+                "--bind",
+                "space:accept", // space is handy than <cr>/<c-m>
+                "--input-file",
+                self.facts.dbpath,
+                "--query",
+                lock.getLastQuery(),
+            },
+        });
+        defer self.allocator.free(result.stdout);
 
-            switch (result.term) {
-                .Exited => |exited| switch (exited) {
-                    0 => {
-                        assert(mem.endsWith(u8, result.stdout, "\n"));
-                        var iter = mem.split(u8, result.stdout[0 .. result.stdout.len - 1], "\n");
-                        if (iter.next()) |query| {
-                            if (query.len > 0) try lock.setLastQuery(query);
-                        } else return error.expectQuery;
-                        if (iter.next()) |matched| {
-                            try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{matched});
-                        } else return error.expectMatch;
-                    },
-                    1 => {},
-                    else => {},
+        switch (result.term) {
+            .Exited => |exited| switch (exited) {
+                0 => {
+                    assert(mem.endsWith(u8, result.stdout, "\n"));
+                    var iter = mem.split(u8, result.stdout[0 .. result.stdout.len - 1], "\n");
+                    if (iter.next()) |query| {
+                        if (query.len > 0) try lock.setLastQuery(query);
+                    } else return error.expectQuery;
+                    if (iter.next()) |matched| {
+                        try std.fmt.format(std.io.getStdOut().writer(), "cd {s}", .{matched});
+                    } else return error.expectMatch;
                 },
-                else => unreachable,
-            }
-        } else {
-            std.log.err("fzf feature has been disabled", .{});
+                1 => {},
+                else => {},
+            },
+            else => unreachable,
         }
     }
 
@@ -288,18 +283,14 @@ fn dispatchRun(allocator: mem.Allocator) !void {
             std.log.err("unknown subcmd: {s}", .{subcmd});
         }
     } else {
-        if (features.fzf) {
-            try cmds.fzf();
-        } else {
-            std.log.err("choose a subcmd", .{});
-        }
+        try cmds.fzf();
     }
 }
 
 pub fn main() !void {
     if (builtin.mode == .Debug) {
         var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        defer assert(!gpa.deinit());
+        defer assert(gpa.deinit() != .leak);
         const allocator = gpa.allocator();
         try dispatchRun(allocator);
     } else {

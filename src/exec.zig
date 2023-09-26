@@ -40,7 +40,7 @@ pub fn stdoutonly(args: struct {
 
     return ExecResult{
         .term = try child.wait(),
-        .stdout = stdout.toOwnedSlice(),
+        .stdout = try stdout.toOwnedSlice(),
     };
 }
 
@@ -72,7 +72,7 @@ fn collectOutputPosix(
         // check if there's some data waiting to be read first.
         if (poll_fds[0].revents & os.POLL.IN != 0) {
             // stdout is ready.
-            const new_capacity = std.math.min(stdout.items.len + bump_amt, max_output_bytes);
+            const new_capacity = @min(stdout.items.len + bump_amt, max_output_bytes);
             try stdout.ensureTotalCapacity(new_capacity);
             const buf = stdout.unusedCapacitySlice();
             if (buf.len == 0) return error.StdoutStreamTooLong;
