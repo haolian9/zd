@@ -4,10 +4,9 @@ const std = @import("std");
 const mem = std.mem;
 const fs = std.fs;
 const EnvMap = std.process.EnvMap;
-const Arg0Expand = std.os.Arg0Expand;
 const ChildProcess = std.ChildProcess;
 const builtin = std.builtin;
-const os = std.os;
+const posix = std.posix;
 
 pub const ExecResult = struct {
     term: ChildProcess.Term,
@@ -21,7 +20,7 @@ pub fn stdoutonly(args: struct {
     cwd_dir: ?fs.Dir = null,
     env_map: ?*const EnvMap = null,
     max_output_bytes: usize = 50 * 1024,
-    expand_arg0: Arg0Expand = .no_expand,
+    expand_arg0: posix.Arg0Expand = .no_expand,
 }) !ExecResult {
     var child = ChildProcess.init(args.argv, args.allocator);
     child.stdin_behavior = .Ignore;
@@ -49,8 +48,8 @@ fn collectOutputPosix(
     stdout: *std.ArrayList(u8),
     max_output_bytes: usize,
 ) !void {
-    var poll_fds = [_]os.pollfd{
-        .{ .fd = child.stdout.?.handle, .events = os.POLL.IN, .revents = undefined },
+    var poll_fds = [_]posix.pollfd{
+        .{ .fd = child.stdout.?.handle, .events = posix.POLL.IN, .revents = undefined },
     };
 
     var dead_fds: usize = 0;
@@ -59,10 +58,10 @@ fn collectOutputPosix(
     // of space an ArrayList will allocate grows exponentially.
     const bump_amt = 512;
 
-    const err_mask = os.POLL.ERR | os.POLL.NVAL | os.POLL.HUP;
+    const err_mask = posix.POLL.ERR | posix.POLL.NVAL | posix.POLL.HUP;
 
     while (dead_fds < poll_fds.len) {
-        const events = try os.poll(&poll_fds, std.math.maxInt(i32));
+        const events = try posix.poll(&poll_fds, std.math.maxInt(i32));
         if (events == 0) continue;
 
         var remove_stdout = false;
@@ -70,13 +69,13 @@ fn collectOutputPosix(
         // conditions.
         // It's still possible to read after a POLL.HUP is received, always
         // check if there's some data waiting to be read first.
-        if (poll_fds[0].revents & os.POLL.IN != 0) {
+        if (poll_fds[0].revents & posix.POLL.IN != 0) {
             // stdout is ready.
             const new_capacity = @min(stdout.items.len + bump_amt, max_output_bytes);
             try stdout.ensureTotalCapacity(new_capacity);
             const buf = stdout.unusedCapacitySlice();
             if (buf.len == 0) return error.StdoutStreamTooLong;
-            const nread = try os.read(poll_fds[0].fd, buf);
+            const nread = try posix.read(poll_fds[0].fd, buf);
             stdout.items.len += nread;
 
             // Remove the fd when the EOF condition is met.

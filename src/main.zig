@@ -1,10 +1,10 @@
 const std = @import("std");
 const assert = std.debug.assert;
 const linux = std.os.linux;
-const os = std.os;
 const fs = std.fs;
 const mem = std.mem;
 const builtin = @import("builtin");
+const posix = std.posix;
 
 const exec = @import("exec.zig");
 
@@ -17,7 +17,7 @@ const Facts = struct {
     const Self = @This();
 
     fn init(allocator: mem.Allocator) !Self {
-        const home_dir = os.getenv("HOME") orelse {
+        const home_dir = std.posix.getenv("HOME") orelse {
             return error.AppCacheDirUnavailable;
         };
 
@@ -51,8 +51,8 @@ const Lock = struct {
         const file = try fs.createFileAbsolute(path, .{ .read = true, .truncate = false });
         errdefer file.close();
 
-        os.flock(file.handle, op | linux.LOCK.NB) catch |err| return err;
-        errdefer os.flock(file.handle, linux.LOCK.UN) catch unreachable;
+        posix.flock(file.handle, op | linux.LOCK.NB) catch |err| return err;
+        errdefer posix.flock(file.handle, linux.LOCK.UN) catch unreachable;
 
         try file.seekTo(0);
         for (&self.data) |*char| char.* = 0;
@@ -63,7 +63,7 @@ const Lock = struct {
 
     fn deinit(self: Self) void {
         defer self.file.close();
-        defer os.flock(self.file.handle, linux.LOCK.UN) catch unreachable;
+        defer posix.flock(self.file.handle, linux.LOCK.UN) catch unreachable;
 
         self.file.seekTo(0) catch unreachable;
         self.file.writeAll(&self.data) catch unreachable;
@@ -83,7 +83,7 @@ const Lock = struct {
     fn setLastQuery(self: *Self, query: []const u8) !void {
         if (query.len > 1024) return error.QueryTooLong;
 
-        mem.copy(u8, self.data[0..query.len], query);
+        mem.copyForwards(u8, self.data[0..query.len], query);
         for (self.data[query.len..1024]) |*char| {
             if (char.* == 0) break;
             char.* = 0;
@@ -153,7 +153,7 @@ const Cmds = struct {
         try lock.init(self.facts.lockpath, linux.LOCK.EX);
         defer lock.deinit();
 
-        return os.unlink(self.facts.dbpath) catch |err| switch (err) {
+        return posix.unlink(self.facts.dbpath) catch |err| switch (err) {
             error.FileNotFound => {},
             else => err,
         };
@@ -241,7 +241,7 @@ const Cmds = struct {
     }
 
     fn edit(self: Self) !void {
-        const editor = std.os.getenv("EDITOR") orelse "vi";
+        const editor = posix.getenv("EDITOR") orelse "vi";
         return std.process.execv(self.allocator, &.{ editor, self.facts.dbpath });
     }
 };
@@ -262,11 +262,11 @@ fn dispatchRun(allocator: mem.Allocator) !void {
                     try cmds.addOne(path);
                 } else {
                     var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-                    try cmds.addOne(try os.realpath(path, &buf));
+                    try cmds.addOne(try posix.realpath(path, &buf));
                 }
             } else {
                 var buf: [fs.MAX_PATH_BYTES]u8 = undefined;
-                const path = try os.getcwd(&buf);
+                const path = try posix.getcwd(&buf);
                 try cmds.addOne(path);
             }
         } else if (mem.eql(u8, subcmd, "clear")) {

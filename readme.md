@@ -6,7 +6,7 @@ a tool to remember directories manually, to fuzzy match a directory manually.
 
 ## aimed use environment
 * linux
-* zig 0.11     # for compilation
+* zig 0.12     # for compilation
 * haolian9/fzf # for --input-file option and char event
 
 ## setup
